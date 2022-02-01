@@ -10,6 +10,10 @@ the referenced repo does. )
 
 """
 
+#################################################
+import pdb # added by me
+################################################
+
 import os
 import re
 import urllib.error
@@ -174,6 +178,11 @@ def get_dfs_processed():
     """ Load and preprocess the data from raw data down to more manageable dataframes that can be chopped
     up a bit for specific purposes. This includes de-meaning, etc."""
     df_cols = make_df_cols()
+    #################################################
+    print("Test10!!!!!!")
+    #print(df_cols)
+    #df_cols = df_cols.reset_index(inplace=True) # added by me
+    #################################################
     df_feat_cols = df_cols[~df_cols.cat.isna()]
 
     df_labels_locomotion, df_labels_gestures = make_df_labels()
@@ -184,27 +193,70 @@ def get_dfs_processed():
         # Meaningful column names
         df.columns = df_cols.name.values
 
+    #################################################################
+    # pdb.set_trace() # added by me
+    ##############################################################
     # Calculate feature normalizing stats from training set only
-    norm_mean = df_train.loc[:, df_feat_cols.name].mean()
-    norm_std = df_train.loc[:, df_feat_cols.name].std()
+    norm_mean = df_train.loc[:, df_feat_cols.name].mean(axis = 0)
+    norm_std = df_train.loc[:, df_feat_cols.name].std(axis = 0)
+    
+    ################################################################
+    norm_mean2 = norm_mean[~norm_mean.index.duplicated(keep='first')] # added by me
+    norm_std2 = norm_std[~norm_std.index.duplicated(keep='first')]
+    
+    ################################################################
+    #pdb.set_trace() # added by me
 
     # Apply to all sets to normalize features
+    ##################################
+    df_out=[]
+    pd.set_option('chained',None)
+    ##################################
     for df in [df_train, df_val, df_test]:
         # de-mean
-        df.loc[:, df_feat_cols.name] -= norm_mean
+        ###########################################
+        
+        #print((list(df_feat_cols.columns.values)))
+        #print(~df_feat_cols.columns.duplicated())
+        df_feat_cols = df_feat_cols.loc[:,~df_feat_cols.columns.duplicated()] # remove duplicate names
+        upd_name = df_feat_cols.name.drop_duplicates()
+
+       # print(type(norm_mean)) # added by me
+        
+        df = df.loc[:,~df.columns.duplicated()]
+        
+        df.loc[:, upd_name] -= norm_mean2
+        
+        df.loc[:, upd_name] /= norm_std2
+        
+        ###########################################
+        
+        
+
+        #df.loc[:, df_feat_cols.name] -= norm_mean
 
         # unit std dev
-        df.loc[:, df_feat_cols.name] /= norm_std
+        #df.loc[:, df_feat_cols.name] /= norm_std
 
         # interpolate and NA's -> 0
+        '''
         df.loc[:, df_feat_cols.name] = (
             df.loc[:, df_feat_cols.name].interpolate().fillna(0)
         )
-
+        '''
+        ###############################################################
+        
+        df.loc[:, upd_name] = (
+            df.loc[:, upd_name].interpolate().fillna(0)
+        )
+        ###############################################################
+        
         df["y_locomotion"] = df["Locomotion"].map(df_labels_locomotion.idx)
         df["y_gesture"] = df["ML_Both_Arms"].map(df_labels_gestures.idx)
+        
+        df_out.append(df)
 
-    return df_train, df_val, df_test
+    return df_out[0],  df_out[1],  df_out[2] # df_train, df_val, df_test # manipulations on df is not affecting the returned dataframes??? (in the original version, df has not been copied but here, I do some copying #line 226)
 
 
 _df_dicts = None
